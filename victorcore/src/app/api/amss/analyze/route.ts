@@ -1,57 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { amssEngine } from '@/lib/amss-engine';
-import { ImageInput } from '@/lib/amss-engine';
+
+const VICTOR_CORE_URL = process.env.VICTOR_CORE_URL || 'http://localhost:8000';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔍 AMSS Semantic Analysis API called');
-    
     const body = await request.json();
-    const { images, prompt } = body;
 
-    // Validate input
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one image is required' },
-        { status: 400 }
-      );
-    }
-
-    // Convert images to ImageInput format
-    const imageInputs: ImageInput[] = images.map((img: any, index: number) => ({
-      data: img.data,
-      type: img.type || 'source',
-      weight: img.weight || 1.0
-    }));
-
-    // Initialize AMSS engine if not already initialized
-    if (!amssEngine['zai']) {
-      await amssEngine.initialize();
-    }
-
-    // Perform deep semantic analysis
-    const semanticAnalysis = await amssEngine['performDeepSemanticAnalysis'](
-      imageInputs,
-      prompt || ''
-    );
-
-    console.log('✅ AMSS Semantic Analysis completed successfully');
-
-    return NextResponse.json({
-      success: true,
-      analysis: semanticAnalysis,
-      processingTime: Date.now()
+    const res = await fetch(`${VICTOR_CORE_URL}/amss/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     });
 
+    if (!res.ok) {
+      throw new Error(`Victor Core responded with status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+
   } catch (error) {
-    console.error('❌ Error in AMSS semantic analysis:', error);
+    console.error('❌ Error in proxying to Victor Core:', error);
     
     return NextResponse.json(
       { 
-        error: 'Failed to perform semantic analysis',
+        error: 'Failed to connect to Victor Core',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { status: 502 } // Bad Gateway
     );
   }
 }
