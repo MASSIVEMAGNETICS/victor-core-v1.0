@@ -1,135 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { realtimeOptimizer } from '@/lib/realtime-optimizer';
+
+const VICTOR_CORE_URL = process.env.VICTOR_CORE_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action');
+    const action = searchParams.get('action') || 'stats';
 
-    // Initialize optimizer if not already initialized
-    if (!realtimeOptimizer['zai']) {
-      await realtimeOptimizer.initialize();
+    const res = await fetch(`${VICTOR_CORE_URL}/amss/optimizer?action=${action}`);
+
+    if (!res.ok) {
+      throw new Error(`Victor Core responded with status: ${res.status}`);
     }
 
-    switch (action) {
-      case 'stats':
-        const stats = realtimeOptimizer.getStats();
-        return NextResponse.json({
-          success: true,
-          action: 'stats',
-          data: stats
-        });
+    const data = await res.json();
+    return NextResponse.json(data);
 
-      case 'recommendations':
-        const recommendations = await realtimeOptimizer.getRecommendations();
-        return NextResponse.json({
-          success: true,
-          action: 'recommendations',
-          data: recommendations
-        });
-
-      case 'start':
-        realtimeOptimizer.start();
-        return NextResponse.json({
-          success: true,
-          action: 'start',
-          message: 'Real-time optimization started'
-        });
-
-      case 'stop':
-        realtimeOptimizer.stop();
-        return NextResponse.json({
-          success: true,
-          action: 'stop',
-          message: 'Real-time optimization stopped'
-        });
-
-      default:
-        return NextResponse.json({
-          success: true,
-          engine: 'Real-time Optimizer',
-          version: '1.0.0',
-          capabilities: [
-            'Real-time performance monitoring',
-            'Adaptive feedback loops',
-            'Automatic optimization',
-            'Predictive modeling',
-            'Quality assurance',
-            'Resource optimization'
-          ],
-          status: realtimeOptimizer['config']?.enableRealTimeOptimization ? 'active' : 'inactive',
-          stats: realtimeOptimizer.getStats()
-        });
-    }
   } catch (error) {
-    console.error('❌ Error in optimizer API:', error);
+    console.error('❌ Error in proxying to Victor Core:', error);
     
     return NextResponse.json(
       { 
-        error: 'Optimizer API error',
+        error: 'Failed to connect to Victor Core',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { status: 502 } // Bad Gateway
     );
   }
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { action, config } = body;
+    try {
+        const body = await request.json();
 
-    // Initialize optimizer if not already initialized
-    if (!realtimeOptimizer['zai']) {
-      await realtimeOptimizer.initialize();
-    }
+        const res = await fetch(`${VICTOR_CORE_URL}/amss/optimizer`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        });
 
-    switch (action) {
-      case 'configure':
-        if (config) {
-          // Update configuration
-          Object.assign(realtimeOptimizer['config'], config);
-          return NextResponse.json({
-            success: true,
-            action: 'configure',
-            message: 'Optimizer configuration updated',
-            config: realtimeOptimizer['config']
-          });
+        if (!res.ok) {
+        throw new Error(`Victor Core responded with status: ${res.status}`);
         }
-        break;
 
-      case 'clear-history':
-        realtimeOptimizer.clearHistory();
-        return NextResponse.json({
-          success: true,
-          action: 'clear-history',
-          message: 'Optimizer history cleared'
-        });
+        const data = await res.json();
+        return NextResponse.json(data);
 
-      case 'force-optimization':
-        // Force immediate optimization cycle
-        await realtimeOptimizer['runOptimizationCycle']();
-        return NextResponse.json({
-          success: true,
-          action: 'force-optimization',
-          message: 'Forced optimization cycle completed'
-        });
+    } catch (error) {
+        console.error('❌ Error in proxying to Victor Core:', error);
 
-      default:
         return NextResponse.json(
-          { error: 'Unknown action' },
-          { status: 400 }
+        {
+            error: 'Failed to connect to Victor Core',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 502 } // Bad Gateway
         );
     }
-  } catch (error) {
-    console.error('❌ Error in optimizer POST API:', error);
-    
-    return NextResponse.json(
-      { 
-        error: 'Optimizer POST API error',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
 }
